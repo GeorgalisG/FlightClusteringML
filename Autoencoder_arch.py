@@ -3,7 +3,7 @@
 """
 Created on Thu Jan  5 11:54:49 2023
 
-@author: george
+@author: Georgios Georgalis
 """
 
 
@@ -24,112 +24,9 @@ import re
 import six
 from os.path import join
 from matplotlib import pyplot as plt
-
-
-# #%% Training set
-# #Example flights (SR-20)
-# xtrain_sr = []
-
-# sr20_folder = './../XC/JAISdata/SR-20' 
-# for file in os.listdir(sr20_folder):
-#     if file.startswith('log'):
-#         print(file)
-#         newflight = pd.read_csv(sr20_folder+'/'+file, header = 2 )
-#         newflight = newflight.apply(pd.to_numeric, errors='coerce').fillna(0)
-#         newflight = newflight[['  AltMSL','    IAS','    VSpd','  Pitch',' E1 CHT1',' E1 CHT2',' E1 CHT3',' E1 CHT4',
-#                     ' E1 EGT1',' E1 EGT2',' E1 EGT3',' E1 EGT4',' E1 RPM']]
-#         newflight['avg_CHT'] = newflight[[' E1 CHT1',' E1 CHT2',' E1 CHT3',' E1 CHT4']].mean(axis=1) #############!!!!!
-#         newflight=newflight.drop(columns=[' E1 CHT1',' E1 CHT2',' E1 CHT3',' E1 CHT4'])
-
-#         newflight['avg_EGT'] = newflight[[' E1 EGT1',' E1 EGT2',' E1 EGT3',' E1 EGT4']].mean(axis=1) #############!!!!!
-#         newflight=newflight.drop(columns=[' E1 EGT1',' E1 EGT2',' E1 EGT3',' E1 EGT4'])
-
-#         newflight.columns = newflight.columns.str.replace(' ', '')
-#         newflight = newflight[newflight.IAS > 0]
-#         newflight = newflight.reset_index(drop=True)
-#         newflight['dAlt'] = newflight['AltMSL'].diff()
-#         newflight['dAlt'][0] = 0
-#         newflight['MA_VSpd'] = newflight['VSpd'].rolling(20).mean()
-#         newflight['MA_VSpd'][0:20] = newflight['VSpd'][0:20]
-#         if np.size(xtrain_sr,0) == 0:
-#             xtrain_sr = newflight
-#         else:
-#             xtrain_sr = pd.concat([xtrain_sr, newflight])
-        
-# #Example flights (C-172)  
-# xtrain_c = []
-
-# c172_folder = './../XC/JAISdata/C-172' 
-# for file in os.listdir(c172_folder):
-#     if file.startswith('log'):
-#         print(file)
-#         newflight = pd.read_csv(c172_folder+'/'+file, header = 2 )
-#         newflight = newflight.apply(pd.to_numeric, errors='coerce').fillna(0)
-#         newflight = newflight[['  AltMSL','    IAS','    VSpd','  Pitch',' E1 CHT1',' E1 CHT2',' E1 CHT3',' E1 CHT4',
-#                     ' E1 EGT1',' E1 EGT2',' E1 EGT3',' E1 EGT4',' E1 RPM']]
-#         newflight['avg_CHT'] = newflight[[' E1 CHT1',' E1 CHT2',' E1 CHT3',' E1 CHT4']].mean(axis=1) #############!!!!!
-#         newflight=newflight.drop(columns=[' E1 CHT1',' E1 CHT2',' E1 CHT3',' E1 CHT4'])
-
-#         newflight['avg_EGT'] = newflight[[' E1 EGT1',' E1 EGT2',' E1 EGT3',' E1 EGT4']].mean(axis=1) #############!!!!!
-#         newflight=newflight.drop(columns=[' E1 EGT1',' E1 EGT2',' E1 EGT3',' E1 EGT4'])
-
-#         newflight.columns = newflight.columns.str.replace(' ', '')
-#         newflight = newflight[newflight.IAS > 0]
-#         newflight = newflight.reset_index(drop=True)
-#         newflight['dAlt'] = newflight['AltMSL'].diff()
-#         newflight['dAlt'][0] = 0
-#         newflight['MA_VSpd'] = newflight['VSpd'].rolling(20).mean()
-#         newflight['MA_VSpd'][0:20] = newflight['VSpd'][0:20]        
-#         if np.size(xtrain_c,0) == 0:
-#             xtrain_c = newflight
-#         else:
-#             xtrain_c = pd.concat([xtrain_c, newflight])
-
-# x_train = pd.concat([xtrain_c, xtrain_sr])
-
-# #Export
-# np.save('./xtrain.npy',x_train)
-
-# #%% Test/validation flights
-# x_test = []
-
-# test_folder = './../XC/JAISdata/testflights' 
-# for file in os.listdir(test_folder):
-#     if file.startswith('log'):
-#         print(file)
-#         newflight = pd.read_csv(test_folder+'/'+file, header = 2 )
-#         newflight = newflight.apply(pd.to_numeric, errors='coerce').fillna(0)
-#         newflight = newflight[['  AltMSL','    IAS','    VSpd','  Pitch',' E1 CHT1',' E1 CHT2',' E1 CHT3',' E1 CHT4',
-#                     ' E1 EGT1',' E1 EGT2',' E1 EGT3',' E1 EGT4',' E1 RPM']]
-#         newflight['avg_CHT'] = newflight[[' E1 CHT1',' E1 CHT2',' E1 CHT3',' E1 CHT4']].mean(axis=1) #############!!!!!
-#         newflight=newflight.drop(columns=[' E1 CHT1',' E1 CHT2',' E1 CHT3',' E1 CHT4'])
-
-#         newflight['avg_EGT'] = newflight[[' E1 EGT1',' E1 EGT2',' E1 EGT3',' E1 EGT4']].mean(axis=1) #############!!!!!
-#         newflight=newflight.drop(columns=[' E1 EGT1',' E1 EGT2',' E1 EGT3',' E1 EGT4'])
-
-#         newflight.columns = newflight.columns.str.replace(' ', '')
-#         newflight = newflight[newflight.IAS > 0]
-#         newflight = newflight.reset_index(drop=True)
-#         newflight['dAlt'] = newflight['AltMSL'].diff()
-#         newflight['dAlt'][0] = 0
-#         newflight['MA_VSpd'] = newflight['VSpd'].rolling(20).mean()
-#         newflight['MA_VSpd'][0:20] = newflight['VSpd'][0:20]          
-#         if np.size(x_test,0) == 0:
-#             x_test = newflight
-#         else:
-#             x_test = pd.concat([x_test, newflight])
-            
-        
-# # #Export
-# np.save('./xtest.npy',x_test)
-
-
 from sklearn.preprocessing import StandardScaler
 
-
-
-#%%HPC starts from here
-
+#%%This code is used to train an autoencoder for the flight data for dimensionality reduction. It requires you to generate a training and testing set.
 x_train = np.load('./xtrain.npy')
 x_test = np.load('./xtest.npy')
 
