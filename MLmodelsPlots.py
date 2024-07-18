@@ -3,13 +3,12 @@
 """
 Created on Thu Jan  5 11:54:49 2023
 
-@author: george
+@author: Georgios Georgalis
 """
 
 
 import os
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
-
 import numpy as np
 import matplotlib.pyplot as plt
 import tensorflow as tf
@@ -24,10 +23,6 @@ import re
 import six
 from os.path import join
 from matplotlib import pyplot as plt
-
-
-
-
 from kneed import KneeLocator
 from sklearn.datasets import make_blobs
 from sklearn.cluster import KMeans
@@ -35,35 +30,7 @@ from sklearn.metrics import silhouette_score
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 
-# #load entire dataset
-# xtrain = np.load('xtrain.npy')
-# df_xtrain = pd.DataFrame(xtrain, columns = ['AltMSL','IAS','VSpd','Pitch','avg_CHT','avg_EGT','E1RPM', 'dALT', 'MA_VSpd'])
-
-# #Corr map
-# import seaborn as sns
-# cormat = df_xtrain.corr()
-# plt.figure()
-# sns.heatmap(cormat, annot = True, fmt='.1g', cmap='Blues')
-
-#del xtrain
-#del df_xtrain
-
-# #Low variance filter
-# df_xtrain.var()
-# from sklearn.preprocessing import MinMaxScaler
-# scaler = MinMaxScaler()
-# df_xtrain_varscaled = scaler.fit_transform(df_xtrain)
-# df_xtrain_varscaled = pd.DataFrame(df_xtrain_varscaled, columns = ['AltMSL','IAS','VSpd','Pitch','avg_CHT','avg_EGT','E1RPM', 'dALT', 'MA_VSpd'])
-# df_xtrain_varscaled.var()
-# df_xtrain_varscaled.var().median()
-
-# #Remove features that have variance <threshold so remove pitch, avg_EGT, E1RPM, dAlT
-
-# df_xtrain_varscaled = df_xtrain_varscaled.drop(['Pitch', 'avg_EGT', 'E1RPM', 'dALT'], axis = 1)
-
-
-#%%Load test flights
-
+#Path to test flights folder, we have 8 flights
 test_folder = './../XC/JAISdata/testflights' 
 flight1 = pd.read_csv(test_folder+'/'+'log_210820_152705_KCUH.csv', header = 2 ) #cessna
 flight2 = pd.read_csv(test_folder+'/'+'log_190917_201335_KSWO.csv', header = 2 ) #cessna
@@ -74,7 +41,7 @@ flight6 = pd.read_csv(test_folder+'/'+'log_211020_200656_KSWO.csv', header = 2 )
 flight7 = pd.read_csv(test_folder+'/'+'log_220118_174650_KSWO.csv', header = 2 ) #cirrus
 flight8 = pd.read_csv(test_folder+'/'+'log_221006_200626_KSWO.csv', header = 2 ) #cirrus
 
-
+#Each flight dataframes need some pre-processing and cleaning
 #Flight 1
 flight1 = flight1.apply(pd.to_numeric, errors='coerce').fillna(0)
 flight1 = flight1[['  AltMSL','    IAS','    VSpd','  Pitch',' E1 CHT1',' E1 CHT2',' E1 CHT3',' E1 CHT4',
@@ -240,7 +207,8 @@ flight8['MA_VSpd'] = flight8['VSpd'].rolling(30).mean()
 flight8['MA_VSpd'][0:30] = flight8['VSpd'][0:30]
 keepalt8 = flight8['AltMSL']
 
-#%%load clustering
+
+#%%K-means clustering setup
 kmeans = KMeans(
     init="k-means++",
     n_clusters=3,
@@ -248,9 +216,11 @@ kmeans = KMeans(
     max_iter=400,
 )
 
+#GMM setup
 from sklearn.mixture import GaussianMixture
 gmm = GaussianMixture(n_components=3, random_state = 42, init_params='kmeans')
 
+#PCA setup
 from sklearn.decomposition import PCA
 pca = PCA(n_components = 4)
 
@@ -263,293 +233,264 @@ flightdict = {'1':flight1, '2':flight2, '3':flight3, '4':flight4, '5':flight5, '
 minmaxscaler = MinMaxScaler()
 sscaler = StandardScaler()
 
-# #%% Low variance filter
+#Tables with scores of clustering quality for each method
+#%% Low variance filter
 
-# sil_score_kmeans_lvf = []
-# ch_score_kmeans_lvf =[]
-# db_score_kmeans_lvf = []
+sil_score_kmeans_lvf = []
+ch_score_kmeans_lvf =[]
+db_score_kmeans_lvf = []
 
-# sil_score_gmm_lvf = []
-# ch_score_gmm_lvf =[]
-# db_score_gmm_lvf =[]
+sil_score_gmm_lvf = []
+ch_score_gmm_lvf =[]
+db_score_gmm_lvf =[]
 
-# for i in flightdict.items():
-#     flight_varscaled = minmaxscaler.fit_transform(i[1])
-#     flight_varscaled = pd.DataFrame(flight_varscaled, columns = ['AltMSL','IAS','VSpd','Pitch','avg_CHT','avg_EGT','E1RPM', 'dAlt', 'MA_VSpd'])
-#     columns = flight_varscaled.columns
-#     variable = []
-#     for j in range(0,9):
-#         if flight_varscaled.var()[j]>=flight_varscaled.var().median():
-#             variable.append(columns[j])
+for i in flightdict.items():
+     flight_varscaled = minmaxscaler.fit_transform(i[1])
+     flight_varscaled = pd.DataFrame(flight_varscaled, columns = ['AltMSL','IAS','VSpd','Pitch','avg_CHT','avg_EGT','E1RPM', 'dAlt', 'MA_VSpd'])
+     columns = flight_varscaled.columns
+     variable = []
+     for j in range(0,9):
+         if flight_varscaled.var()[j]>=flight_varscaled.var().median():
+             variable.append(columns[j])
             
 
-#     flight = i[1].loc[:,variable]
-#     flight_scaled = sscaler.fit_transform(flight)  
-#     kmeans.fit(flight_scaled) 
-#     labels = kmeans.labels_
-#     sil_score_kmeans_lvf.append(silhouette_score(flight_scaled, labels, metric='euclidean'))
-#     ch_score_kmeans_lvf.append(calinski_harabasz_score(flight_scaled, labels))
-#     db_score_kmeans_lvf.append(davies_bouldin_score(flight_scaled, labels))
+     flight = i[1].loc[:,variable]
+     flight_scaled = sscaler.fit_transform(flight)  
+     kmeans.fit(flight_scaled) 
+     labels = kmeans.labels_
+     sil_score_kmeans_lvf.append(silhouette_score(flight_scaled, labels, metric='euclidean'))
+     ch_score_kmeans_lvf.append(calinski_harabasz_score(flight_scaled, labels))
+     db_score_kmeans_lvf.append(davies_bouldin_score(flight_scaled, labels))
     
-#     gmm.fit(flight_scaled)
-#     labels = gmm.predict(flight_scaled)
-#     sil_score_gmm_lvf.append(silhouette_score(flight_scaled, labels, metric='euclidean'))
-#     ch_score_gmm_lvf.append(calinski_harabasz_score(flight_scaled, labels))
-#     db_score_gmm_lvf.append(davies_bouldin_score(flight_scaled, labels))
+     gmm.fit(flight_scaled)
+     labels = gmm.predict(flight_scaled)
+     sil_score_gmm_lvf.append(silhouette_score(flight_scaled, labels, metric='euclidean'))
+     ch_score_gmm_lvf.append(calinski_harabasz_score(flight_scaled, labels))
+     db_score_gmm_lvf.append(davies_bouldin_score(flight_scaled, labels))
 
-# #Compile scores for LVF
-# df_lfv_scores = pd.DataFrame({'sil_kmeans': sil_score_kmeans_lvf, 'sil_gmm': sil_score_gmm_lvf, 'ch_kmeans': ch_score_kmeans_lvf, 'ch_gmm':ch_score_gmm_lvf, 'db_kmeans': db_score_kmeans_lvf, 'db_gmm':db_score_gmm_lvf })
+#Compile scores for LVF
+
+df_lfv_scores = pd.DataFrame({'sil_kmeans': sil_score_kmeans_lvf, 'sil_gmm': sil_score_gmm_lvf, 'ch_kmeans': ch_score_kmeans_lvf, 'ch_gmm':ch_score_gmm_lvf, 'db_kmeans': db_score_kmeans_lvf, 'db_gmm':db_score_gmm_lvf })
 
 
-# #%%High Correlation Filter
-# def hcf(dataset, threshold):
-#     col_corr = set()
-#     corr_matrix = dataset.corr()
-#     for i in range(len(corr_matrix.columns)):
-#         for j in range(i):
-#             if abs(corr_matrix.iloc[i,j]>threshold):
-#                 colname = corr_matrix.columns[i]
-#                 col_corr.add(colname)
-#     return col_corr
+#%%High Correlation Filter
+ def hcf(dataset, threshold):
+     col_corr = set()
+     corr_matrix = dataset.corr()
+     for i in range(len(corr_matrix.columns)):
+         for j in range(i):
+             if abs(corr_matrix.iloc[i,j]>threshold):
+                 colname = corr_matrix.columns[i]
+                 col_corr.add(colname)
+     return col_corr
 
-# sil_score_kmeans_hcf = []
-# ch_score_kmeans_hcf =[]
-# db_score_kmeans_hcf = []
-
-# sil_score_gmm_hcf = []
-# ch_score_gmm_hcf =[]
-# db_score_gmm_hcf =[]
+ sil_score_kmeans_hcf = []
+ ch_score_kmeans_hcf =[]
+ db_score_kmeans_hcf = []
+ sil_score_gmm_hcf = []
+ ch_score_gmm_hcf =[]
+ db_score_gmm_hcf =[]
     
-# for i in flightdict.items():
-#     flight_scaled = sscaler.fit_transform(i[1])
-#     flight_scaled = pd.DataFrame(flight_scaled, columns = ['AltMSL','IAS','VSpd','Pitch','avg_CHT','avg_EGT','E1RPM', 'dAlt', 'MA_VSpd'])
-#     cor_features = hcf(flight_scaled, 0.6) 
-#     flight_scaled = flight_scaled.drop(cor_features, axis = 1)
+ for i in flightdict.items():
+     flight_scaled = sscaler.fit_transform(i[1])
+     flight_scaled = pd.DataFrame(flight_scaled, columns = ['AltMSL','IAS','VSpd','Pitch','avg_CHT','avg_EGT','E1RPM', 'dAlt', 'MA_VSpd'])
+     cor_features = hcf(flight_scaled, 0.6) 
+     flight_scaled = flight_scaled.drop(cor_features, axis = 1)
     
-#     kmeans.fit(flight_scaled) 
-#     labels = kmeans.labels_
-#     sil_score_kmeans_hcf.append(silhouette_score(flight_scaled, labels, metric='euclidean'))
-#     ch_score_kmeans_hcf.append(calinski_harabasz_score(flight_scaled, labels))
-#     db_score_kmeans_hcf.append(davies_bouldin_score(flight_scaled, labels))
+     kmeans.fit(flight_scaled) 
+     labels = kmeans.labels_
+     sil_score_kmeans_hcf.append(silhouette_score(flight_scaled, labels, metric='euclidean'))
+     ch_score_kmeans_hcf.append(calinski_harabasz_score(flight_scaled, labels))
+     db_score_kmeans_hcf.append(davies_bouldin_score(flight_scaled, labels))
    
-#     gmm.fit(flight_scaled)
-#     labels = gmm.predict(flight_scaled)
-#     sil_score_gmm_hcf.append(silhouette_score(flight_scaled, labels, metric='euclidean'))
-#     ch_score_gmm_hcf.append(calinski_harabasz_score(flight_scaled, labels))
-#     db_score_gmm_hcf.append(davies_bouldin_score(flight_scaled, labels))
-    
-# #Compile scores for HCF
-# df_hcf_scores = pd.DataFrame({'sil_kmeans': sil_score_kmeans_hcf, 'sil_gmm': sil_score_gmm_hcf, 'ch_kmeans': ch_score_kmeans_hcf, 'ch_gmm':ch_score_gmm_hcf, 'db_kmeans': db_score_kmeans_hcf, 'db_gmm':db_score_gmm_hcf })
+     gmm.fit(flight_scaled)
+     labels = gmm.predict(flight_scaled)
+     sil_score_gmm_hcf.append(silhouette_score(flight_scaled, labels, metric='euclidean'))
+     ch_score_gmm_hcf.append(calinski_harabasz_score(flight_scaled, labels))
+     db_score_gmm_hcf.append(davies_bouldin_score(flight_scaled, labels))
+   
+ #Compile scores for HCF
+
+df_hcf_scores = pd.DataFrame({'sil_kmeans': sil_score_kmeans_hcf, 'sil_gmm': sil_score_gmm_hcf, 'ch_kmeans': ch_score_kmeans_hcf, 'ch_gmm':ch_score_gmm_hcf, 'db_kmeans': db_score_kmeans_hcf, 'db_gmm':db_score_gmm_hcf })
    
     
-# #%%PCA with 4 components    
+ #%%PCA with 4 components    
     
-# sil_score_kmeans_pca = []
-# ch_score_kmeans_pca =[]
-# db_score_kmeans_pca = []
+ sil_score_kmeans_pca = []
+ ch_score_kmeans_pca =[]
+ db_score_kmeans_pca = []
 
-# sil_score_gmm_pca = []
-# ch_score_gmm_pca =[]
-# db_score_gmm_pca =[]
+ sil_score_gmm_pca = []
+ ch_score_gmm_pca =[]
+ db_score_gmm_pca =[]
 
-# for i in flightdict.items():
-#     flight_scaled = sscaler.fit_transform(i[1])
-#     flight_scaled = pd.DataFrame(flight_scaled, columns = ['AltMSL','IAS','VSpd','Pitch','avg_CHT','avg_EGT','E1RPM', 'dAlt', 'MA_VSpd'])
-#     flight_pca = pca.fit_transform(flight_scaled)
-
+ for i in flightdict.items():
+     flight_scaled = sscaler.fit_transform(i[1])
+     flight_scaled = pd.DataFrame(flight_scaled, columns = ['AltMSL','IAS','VSpd','Pitch','avg_CHT','avg_EGT','E1RPM', 'dAlt', 'MA_VSpd'])
+     flight_pca = pca.fit_transform(flight_scaled)
   
-#     kmeans.fit(flight_pca) 
-#     labels = kmeans.labels_
-#     sil_score_kmeans_pca.append(silhouette_score(flight_pca, labels, metric='euclidean'))
-#     ch_score_kmeans_pca.append(calinski_harabasz_score(flight_pca, labels))
-#     db_score_kmeans_pca.append(davies_bouldin_score(flight_pca, labels))
-   
-#     gmm.fit(flight_pca)
-#     labels = gmm.predict(flight_pca)
-#     sil_score_gmm_pca.append(silhouette_score(flight_pca, labels, metric='euclidean'))
-#     ch_score_gmm_pca.append(calinski_harabasz_score(flight_pca, labels))
-#     db_score_gmm_pca.append(davies_bouldin_score(flight_pca, labels))
-
+     kmeans.fit(flight_pca) 
+     labels = kmeans.labels_
+     sil_score_kmeans_pca.append(silhouette_score(flight_pca, labels, metric='euclidean'))
+     ch_score_kmeans_pca.append(calinski_harabasz_score(flight_pca, labels))
+     db_score_kmeans_pca.append(davies_bouldin_score(flight_pca, labels))
+  
+     gmm.fit(flight_pca)
+     labels = gmm.predict(flight_pca)
+     sil_score_gmm_pca.append(silhouette_score(flight_pca, labels, metric='euclidean'))
+     ch_score_gmm_pca.append(calinski_harabasz_score(flight_pca, labels))
+     db_score_gmm_pca.append(davies_bouldin_score(flight_pca, labels))
 # #Compile scores for PCA
-# df_pca_scores = pd.DataFrame({'sil_kmeans': sil_score_kmeans_pca, 'sil_gmm': sil_score_gmm_pca, 'ch_kmeans': ch_score_kmeans_pca, 'ch_gmm':ch_score_gmm_pca, 'db_kmeans': db_score_kmeans_pca, 'db_gmm':db_score_gmm_pca })
+df_pca_scores = pd.DataFrame({'sil_kmeans': sil_score_kmeans_pca, 'sil_gmm': sil_score_gmm_pca, 'ch_kmeans': ch_score_kmeans_pca, 'ch_gmm':ch_score_gmm_pca, 'db_kmeans': db_score_kmeans_pca, 'db_gmm':db_score_gmm_pca })
    
-# #%% No-engine, no duplicates info
-# sil_score_kmeans_noeng = []
-# ch_score_kmeans_noeng =[]
-# db_score_kmeans_noeng = []
+ #%% No-engine, no duplicates info
+ sil_score_kmeans_noeng = []
+ ch_score_kmeans_noeng =[]
+ db_score_kmeans_noeng = []
+ sil_score_gmm_noeng = []
+ ch_score_gmm_noeng =[]
+ db_score_gmm_noeng =[]
+ for i in flightdict.items():
+     flight_scaled = sscaler.fit_transform(i[1])
+     flight_scaled = pd.DataFrame(flight_scaled, columns = ['AltMSL','IAS','VSpd','Pitch','avg_CHT','avg_EGT','E1RPM', 'dAlt', 'MA_VSpd'])
+     flight_scaled = flight_scaled.drop(['AltMSL', 'VSpd' ,'avg_CHT', 'avg_EGT', 'E1RPM'], axis = 1)
+ 
+     kmeans.fit(flight_scaled) 
+     labels = kmeans.labels_
+     sil_score_kmeans_noeng.append(silhouette_score(flight_scaled, labels, metric='euclidean'))
+     ch_score_kmeans_noeng.append(calinski_harabasz_score(flight_scaled, labels))
+     db_score_kmeans_noeng.append(davies_bouldin_score(flight_scaled, labels))
+   
+     gmm.fit(flight_scaled)
+     labels = gmm.predict(flight_scaled)
+     sil_score_gmm_noeng.append(silhouette_score(flight_scaled, labels, metric='euclidean'))
+     ch_score_gmm_noeng.append(calinski_harabasz_score(flight_scaled, labels))
+     db_score_gmm_noeng.append(davies_bouldin_score(flight_scaled, labels))
 
-# sil_score_gmm_noeng = []
-# ch_score_gmm_noeng =[]
-# db_score_gmm_noeng =[]
+ #Compile scores for noeng
+df_noeng_scores = pd.DataFrame({'sil_kmeans': sil_score_kmeans_noeng, 'sil_gmm': sil_score_gmm_noeng, 'ch_kmeans': ch_score_kmeans_noeng, 'ch_gmm':ch_score_gmm_noeng, 'db_kmeans': db_score_kmeans_noeng, 'db_gmm':db_score_gmm_noeng })
+    
+ #%%Doing Nothing
+sil_score_kmeans = []
+ch_score_kmeans  =[]
+db_score_kmeans  = []
+sil_score_gmm  = []
+ch_score_gmm  =[]
+db_score_gmm  =[]
 
-# for i in flightdict.items():
-#     flight_scaled = sscaler.fit_transform(i[1])
-#     flight_scaled = pd.DataFrame(flight_scaled, columns = ['AltMSL','IAS','VSpd','Pitch','avg_CHT','avg_EGT','E1RPM', 'dAlt', 'MA_VSpd'])
-#     flight_scaled = flight_scaled.drop(['AltMSL', 'VSpd' ,'avg_CHT', 'avg_EGT', 'E1RPM'], axis = 1)
+ for i in flightdict.items():
+     flight_scaled = sscaler.fit_transform(i[1])
+     flight_scaled = pd.DataFrame(flight_scaled, columns = ['AltMSL','IAS','VSpd','Pitch','avg_CHT','avg_EGT','E1RPM', 'dAlt', 'MA_VSpd'])
+   
+     kmeans.fit(flight_scaled) 
+     labels = kmeans.labels_
+     sil_score_kmeans.append(silhouette_score(flight_scaled, labels, metric='euclidean'))
+     ch_score_kmeans.append(calinski_harabasz_score(flight_scaled, labels))
+     db_score_kmeans.append(davies_bouldin_score(flight_scaled, labels))
   
-#     kmeans.fit(flight_scaled) 
-#     labels = kmeans.labels_
-#     sil_score_kmeans_noeng.append(silhouette_score(flight_scaled, labels, metric='euclidean'))
-#     ch_score_kmeans_noeng.append(calinski_harabasz_score(flight_scaled, labels))
-#     db_score_kmeans_noeng.append(davies_bouldin_score(flight_scaled, labels))
-   
-#     gmm.fit(flight_scaled)
-#     labels = gmm.predict(flight_scaled)
-#     sil_score_gmm_noeng.append(silhouette_score(flight_scaled, labels, metric='euclidean'))
-#     ch_score_gmm_noeng.append(calinski_harabasz_score(flight_scaled, labels))
-#     db_score_gmm_noeng.append(davies_bouldin_score(flight_scaled, labels))
+     gmm.fit(flight_scaled)
+     labels = gmm.predict(flight_scaled)
+     sil_score_gmm.append(silhouette_score(flight_scaled, labels, metric='euclidean'))
+     ch_score_gmm.append(calinski_harabasz_score(flight_scaled, labels))
+     db_score_gmm.append(davies_bouldin_score(flight_scaled, labels))
+ #Compile scores for noeng
+df_scores = pd.DataFrame({'sil_kmeans': sil_score_kmeans, 'sil_gmm': sil_score_gmm, 'ch_kmeans': ch_score_kmeans, 'ch_gmm':ch_score_gmm, 'db_kmeans': db_score_kmeans, 'db_gmm':db_score_gmm })
+%%AE
+from tensorflow.keras.layers import BatchNormalization
+from tensorflow.keras.layers import Activation
+from tensorflow.keras.layers import Dropout
 
-# #Compile scores for noeng
-# df_noeng_scores = pd.DataFrame({'sil_kmeans': sil_score_kmeans_noeng, 'sil_gmm': sil_score_gmm_noeng, 'ch_kmeans': ch_score_kmeans_noeng, 'ch_gmm':ch_score_gmm_noeng, 'db_kmeans': db_score_kmeans_noeng, 'db_gmm':db_score_gmm_noeng })
-    
-# #%%Doing Nothing
-# sil_score_kmeans = []
-# ch_score_kmeans  =[]
-# db_score_kmeans  = []
+ ## Building the autoencoder
+n_inputs=np.shape(flight1)[1] 
 
-# sil_score_gmm  = []
-# ch_score_gmm  =[]
-# db_score_gmm  =[]
-
-# for i in flightdict.items():
-#     flight_scaled = sscaler.fit_transform(i[1])
-#     flight_scaled = pd.DataFrame(flight_scaled, columns = ['AltMSL','IAS','VSpd','Pitch','avg_CHT','avg_EGT','E1RPM', 'dAlt', 'MA_VSpd'])
-    
-#     kmeans.fit(flight_scaled) 
-#     labels = kmeans.labels_
-#     sil_score_kmeans.append(silhouette_score(flight_scaled, labels, metric='euclidean'))
-#     ch_score_kmeans.append(calinski_harabasz_score(flight_scaled, labels))
-#     db_score_kmeans.append(davies_bouldin_score(flight_scaled, labels))
-   
-#     gmm.fit(flight_scaled)
-#     labels = gmm.predict(flight_scaled)
-#     sil_score_gmm.append(silhouette_score(flight_scaled, labels, metric='euclidean'))
-#     ch_score_gmm.append(calinski_harabasz_score(flight_scaled, labels))
-#     db_score_gmm.append(davies_bouldin_score(flight_scaled, labels))
-
-# #Compile scores for noeng
-# df_scores = pd.DataFrame({'sil_kmeans': sil_score_kmeans, 'sil_gmm': sil_score_gmm, 'ch_kmeans': ch_score_kmeans, 'ch_gmm':ch_score_gmm, 'db_kmeans': db_score_kmeans, 'db_gmm':db_score_gmm })
-
-# #%%AE
-
-# from tensorflow.keras.layers import BatchNormalization
-# from tensorflow.keras.layers import Activation
-# from tensorflow.keras.layers import Dropout
-
-
-# ## Building the autoencoder
-# n_inputs=np.shape(flight1)[1] 
-
-# inputs = Input(shape=(n_inputs,))
-# #encoder block 0
-# e0 = Dense(9)(inputs)
-# e0 = BatchNormalization()(e0)
-# e0 = Activation('selu')(e0)
+inputs = Input(shape=(n_inputs,))
+#encoder block 0
+e0 = Dense(9)(inputs)
+e0 = BatchNormalization()(e0)
+e0 = Activation('selu')(e0)
 # #encoder block 1
-# e1 = Dense(8)(e0)
-# e1 = BatchNormalization()(e1)
-# e1 = Activation('selu')(e1)
+e1 = Dense(8)(e0)
+e1 = BatchNormalization()(e1)
+e1 = Activation('selu')(e1)
 # #encoder block 2
-# e2 = Dense(7)(e1)
-# e2 = BatchNormalization()(e2)
-# e2 = Activation('selu')(e2)
-# #encoder block 3
-# e3 = Dense(6)(e2)
-# e3 = BatchNormalization()(e3)
-# e3 = Activation('selu')(e3)
-# #encoder block 4
-# e4 = Dense(5)(e3)
-# e4 = BatchNormalization()(e4)
-# e4 = Activation('selu')(e4)
+e2 = Dense(7)(e1)
+e2 = BatchNormalization()(e2)
+e2 = Activation('selu')(e2)
+#encoder block 3
+e3 = Dense(6)(e2)
+e3 = BatchNormalization()(e3)
+e3 = Activation('selu')(e3)
+#encoder block 4
+e4 = Dense(5)(e3)
+e4 = BatchNormalization()(e4)
+e4 = Activation('selu')(e4)
 
-# #Bottleneck
-# h1 = Dense(4)(e4)
-# h1 = BatchNormalization()(h1)
-# h1 = Activation('selu')(h1)
+ #Bottleneck
+h1 = Dense(4)(e4)
+h1 = BatchNormalization()(h1)
+h1 = Activation('selu')(h1)
+#decoder block 0
+d0 = Dense(5)(h1)
+d0 = BatchNormalization()(d0)
+d0 = Activation('selu')(d0)
+#decoder block 1
+d1 = Dense(6)(d0)
+d1 = BatchNormalization()(d1)
+d1 = Activation('selu')(d1)
+#decoder block 2
+d2 = Dense(7)(d1)
+d2 = BatchNormalization()(d2)
+d2 = Activation('selu')(d2)
+#decoder block 3
+d3 = Dense(8)(d2)
+d3 = BatchNormalization()(d3)
+d3 = Activation('selu')(d3)
+#decoder block 4
+d4 = Dense(8)(d3)
+d4 = BatchNormalization()(d4)
+d4 = Activation('selu')(d4)
+outputs = Dense(n_inputs, activation = 'selu')(d4)
 
-# #decoder block 0
-# d0 = Dense(5)(h1)
-# d0 = BatchNormalization()(d0)
-# d0 = Activation('selu')(d0)
-# #decoder block 1
-# d1 = Dense(6)(d0)
-# d1 = BatchNormalization()(d1)
-# d1 = Activation('selu')(d1)
-# #decoder block 2
-# d2 = Dense(7)(d1)
-# d2 = BatchNormalization()(d2)
-# d2 = Activation('selu')(d2)
-# #decoder block 3
-# d3 = Dense(8)(d2)
-# d3 = BatchNormalization()(d3)
-# d3 = Activation('selu')(d3)
-# #decoder block 4
-# d4 = Dense(8)(d3)
-# d4 = BatchNormalization()(d4)
-# d4 = Activation('selu')(d4)
+autoencoder = Model(inputs, outputs)
+autoencoder.compile(optimizer=Adam(1e-5), loss='mse')
+autoencoder.summary()
 
-# outputs = Dense(n_inputs, activation = 'selu')(d4)
-
-# autoencoder = Model(inputs, outputs)
-# autoencoder.compile(optimizer=Adam(1e-5), loss='mse')
-# autoencoder.summary()
+#encoder only
+encoderonly = Model(inputs=inputs, outputs=h1)
 
 
-# # plot loss
-
-# training_hist = pd.read_csv('train_log_98765456789.csv')
-# training_hist['dloss'] = training_hist['loss'].diff()
-# training_hist['dval_loss'] = training_hist['val_loss'].diff()
-
-# plt.plot(training_hist['loss'], label='Train Loss', c = 'blue')
-# plt.plot(training_hist['dloss'], 'b--', label='Train Loss Change')
-# plt.plot(training_hist['val_loss'], label='Test/Validation Loss', c = 'red')
-# plt.plot(training_hist['dval_loss'], 'r--', label='Test/Validation Change')
-# plt.legend()
-# plt.xlabel(r'Epoch', fontsize = 20)
-# plt.ylabel(r'MSE', fontsize = 20)
-# plt.grid(True, which = 'both')
-# plt.show()
+#The autoencoder training needs to have happened before, so its weight can be read at this point
+encoderonly.load_weights('encoder_98765456789.hdf5')
+autoencoder.load_weights('model_params_98765456789.hdf5')
 
 
 
-# #encoder only
-# encoderonly = Model(inputs=inputs, outputs=h1)
+sil_score_kmeans_ae = []
+ch_score_kmeans_ae  =[]
+db_score_kmeans_ae  = []
+sil_score_gmm_ae  = []
+ch_score_gmm_ae  =[]
+db_score_gmm_ae  =[]
 
-
-
-# encoderonly.load_weights('encoder_98765456789.hdf5')
-# autoencoder.load_weights('model_params_98765456789.hdf5')
-
-
-
-# sil_score_kmeans_ae = []
-# ch_score_kmeans_ae  =[]
-# db_score_kmeans_ae  = []
-
-# sil_score_gmm_ae  = []
-# ch_score_gmm_ae  =[]
-# db_score_gmm_ae  =[]
-
-# for i in flightdict.items():
-#     flight_scaled = sscaler.fit_transform(i[1])
-#     representation = encoderonly.predict(flight_scaled)
+for i in flightdict.items():
+    flight_scaled = sscaler.fit_transform(i[1])
+    representation = encoderonly.predict(flight_scaled)
     
   
-#     kmeans.fit(representation) 
-#     labels = kmeans.labels_
-#     sil_score_kmeans_ae.append(silhouette_score(representation, labels, metric='euclidean'))
-#     ch_score_kmeans_ae.append(calinski_harabasz_score(representation, labels))
-#     db_score_kmeans_ae.append(davies_bouldin_score(representation, labels))
+    kmeans.fit(representation) 
+    labels = kmeans.labels_
+    sil_score_kmeans_ae.append(silhouette_score(representation, labels, metric='euclidean'))
+    ch_score_kmeans_ae.append(calinski_harabasz_score(representation, labels))
+    db_score_kmeans_ae.append(davies_bouldin_score(representation, labels))
    
-#     gmm.fit(representation)
-#     labels = gmm.predict(representation)
-#     sil_score_gmm_ae.append(silhouette_score(representation, labels, metric='euclidean'))
-#     ch_score_gmm_ae.append(calinski_harabasz_score(representation, labels))
-#     db_score_gmm_ae.append(davies_bouldin_score(representation, labels))
+    gmm.fit(representation)
+    labels = gmm.predict(representation)
+    sil_score_gmm_ae.append(silhouette_score(representation, labels, metric='euclidean'))
+    ch_score_gmm_ae.append(calinski_harabasz_score(representation, labels))
+    db_score_gmm_ae.append(davies_bouldin_score(representation, labels))
 
-# #Compile scores for noeng
-# df_scores_ae = pd.DataFrame({'sil_kmeans': sil_score_kmeans_ae, 'sil_gmm': sil_score_gmm_ae, 'ch_kmeans': ch_score_kmeans_ae, 'ch_gmm':ch_score_gmm_ae, 'db_kmeans': db_score_kmeans_ae, 'db_gmm':db_score_gmm_ae })
+#Compile scores for noeng
+df_scores_ae = pd.DataFrame({'sil_kmeans': sil_score_kmeans_ae, 'sil_gmm': sil_score_gmm_ae, 'ch_kmeans': ch_score_kmeans_ae, 'ch_gmm':ch_score_gmm_ae, 'db_kmeans': db_score_kmeans_ae, 'db_gmm':db_score_gmm_ae })
 
 
 
@@ -583,18 +524,10 @@ for f in os.listdir(sr20_folder):
         flight=flight.drop(columns=['AltMSL'])
         flight_s = sscaler.fit_transform(flight)
         
-        # # #Correlation plots
-        # cormat = flight.corr()
-        
-        # import seaborn as sns
-        # plt.figure()
-        # sns.heatmap(cormat, annot = True)        
+  
         
         combined = np.vstack((combined, flight_s[:,[0,1,2,5,6,7]]))
         
-
-        
-        #flight_pca = pca.fit_transform(flight_s)
        
 combined = np.delete(combined, (0), axis=0)
 flight_gmm = gmm.fit(combined)
