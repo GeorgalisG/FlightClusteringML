@@ -6,4 +6,5 @@ Fala, N., Georgalis, G. and Arzamani, N., 2023. Study on machine learning method
 
 Autoencoder_arch.py is the training of the autoencoder as a separete script
 
+MLmodelsPlots.py includes the rest of the analysis about clustering the flight data with various ML methods (including the previously trained autoencoder)
 
